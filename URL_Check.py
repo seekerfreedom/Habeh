@@ -2,7 +2,12 @@ import requests  # type: ignore
 import csv 
 from bs4 import BeautifulSoup # type: ignore
 from concurrent.futures import ThreadPoolExecutor
+import urllib3 # type: ignore
 
+
+urllib3.disable_warnings()
+
+# User Stories for URL Status Checking Program
 def check_url(url): 
     try: 
         response = requests.get(url) 
@@ -13,7 +18,8 @@ def check_url(url):
     except requests.exceptions.RequestException as e: 
         print(f"An error occurred: {e}") 
 
-
+# As a user, I want to check if a website is loading or not, 
+# so that I can verify its availability and accessibility.
 def check_redirect(url): 
     try: 
         response = requests.head(url, allow_redirects=True) 
@@ -27,7 +33,8 @@ def check_redirect(url):
     except requests.exceptions.RequestException as e: 
         print(f"An error occurred: {e}")
 
-
+# As a user, I want to know if the website is redirected and, if yes, 
+# to where, so that I can understand the final destination of the URL.
 def return_checked_redirect(url): 
     try: 
         response = requests.head(url, allow_redirects=True) 
@@ -39,7 +46,8 @@ def return_checked_redirect(url):
     except requests.exceptions.RequestException as e: 
         return (url, 'Error', str(e)) 
 
-
+# As a user, I want to check 100 websites and have the output saved as a CSV file, 
+# so that I can easily review and share the results.
 def batch_process(urls, output_file): 
     results = [] 
     for url in urls: 
@@ -50,7 +58,8 @@ def batch_process(urls, output_file):
              writer.writerow(['Original URL', 'Redirected', 'Final URL']) 
              writer.writerows(results) 
 
-
+# As a user, I want the program to automatically add 
+# "http://" to URLs that lack a scheme, ensuring they load correctly.
 def return_added_scheme(url): 
     try: 
         if not url.startswith(("http://", "https://")):
@@ -61,7 +70,6 @@ def return_added_scheme(url):
     except requests.exceptions.RequestException as e: 
         return (url, 'Error', str(e)) 
 
-        
 def add_scheme_to_urls(urls, output_file):
      updated_urls = []
      for url in urls:
@@ -72,27 +80,22 @@ def add_scheme_to_urls(urls, output_file):
              writer.writerow(['Original URL', 'Redirected', 'Final URL']) 
              writer.writerows(updated_urls) 
 
-
 def add_scheme_to_url(url):
     if not url.startswith(("http://", "https://")):
         url = "http://" + url
     return url
 
-
+# As a user, I want HTTPS errors to be ignored, allowing the program 
+# to proceed with checking the website status without interruption.
 def check_website_status(url):
     try:
         response = requests.get(url, timeout=5, verify=False)
         return response.status_code
     except requests.exceptions.RequestException as e:
         return f"Error: {e}"
-
-def check_website_status_with_url(url):
-    try:
-        response = requests.get(url, verify=False)
-        return (url, response.status_code)
-    except requests.exceptions.RequestException as e:
-        return (url, f"Error: {e}") 
-
+    
+# As a user, I want the program to check if a website is a "dummy page," 
+# such as those under construction, so that I can filter out placeholder content.
 def is_dummy_page(url):
     dummy_keywords = ["under construction", "coming soon", "placeholder", "dummy page"]
     try:
@@ -107,20 +110,11 @@ def is_dummy_page(url):
     except requests.exceptions.RequestException as e:
         return f"Error: {e}"
 
-
-
 #As a user, I want the website to be categorized as belonging to one of the Merck sectors 
 # (Healthcare, Life Science, Electronics, or Emerging Fields). If the categorization confidence is below 90%, 
 # I want it to be labeled as "unknown," ensuring accuracy in sector identification.
 def categorize_website(url):
     merck_sectors = ["healthcare", "life science", "electronics", "emerging fields"]
-    sector_fkeywords = {
-        "healthcare": ["pharmaceutical", "drug", "medicine", "health", "hospital", "therapy", "diagnosis", "healthcare", "medical", "doctor", "health", "pharmacy", "disease", "specialist", "surgery"],
-        "life science": ["Biology", "Anatomy", "Histology", "Neuroscience", "Astrobiology", "Biotechnology" "Bioinformatics", "Biomechanics", "Phycology", "cytology", "biology", "Ecology", "Genetics", "Immunology", "Microbiology"],
-        "electronics": ["semiconductor", "microchip", "integrated circuit", "transistor", "chip", "electronics", "microelectronics", "sensor", "simulation", "electronics", "robotics"],
-        "emerging fields": ["innovation", "research", "AI", "artificial intelligence", "machine learning", "quantum", "nanotechnology", "biotechnology", "robotics", "computing", "biomedical", "genomics", "blockchain", "cybersecurity", "IoT"]
-    }
-
     sector_keywords = {
         "healthcare": ["pharmaceutical", "biopharmaceutical", "drug", "medicine"],
         "life science": ["biotech", "biological", "lab equipment", "chemicals"],
@@ -132,18 +126,13 @@ def categorize_website(url):
         response = requests.get(url, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         page_text = soup.get_text().lower()
-        #print(page_text)
-        
+
         max_confidence = 0
         identified_sector = "unknown"
         
         for sector, keywords in sector_keywords.items():
             confidence = sum(keyword in page_text for keyword in keywords)
             confidence_percentage = (confidence / len(keywords)) * 100
-            #print("confidence_percentage")
-            #print(confidence_percentage)
-            #print("confidence")
-            #print(confidence)
             if confidence_percentage > max_confidence:
                 max_confidence = confidence_percentage
                 identified_sector = sector
@@ -157,14 +146,24 @@ def categorize_website(url):
 
 #As a user, I want the program to utilize multiple workers to process URLs concurrently, 
 # so that the status checking operation is completed more quickly and efficiently
+def check_website_status_with_url(url):
+    try:
+        response = requests.get(url, verify=False)
+        return (url, response.status_code)
+    except requests.exceptions.RequestException as e:
+        return (url, f"Error: {e}") 
 
-def process_urls_concurrently(urls, max_workers=10):
+def process_urls_concurrently(output_file, urls, max_workers=10):
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(check_website_status_with_url, url) for url in urls]
         for future in futures:
             results.append(future.result())
-    return results
+            with open(output_file, mode='w', newline='') as file:
+                writer = csv.writer(file) 
+                writer.writerow(['Original URL', 'Status']) 
+                writer.writerows(results) 
+    #return results
 
 # Run examples
 urls = [
@@ -172,36 +171,6 @@ urls = [
     "https://example2.com",
     "https://example3.com"
 ]
-
-status_results = process_urls_concurrently(urls, max_workers=5)
-for url, status in status_results:
-    print(f"URL: {url}, Status: {status}")
-
-
-redirect_output_file = 'redirect_results.csv' 
-add_scheme_file = 'add_scheme_results.csv' 
-
-batch_process(most_visited_urls, redirect_output_file)
-#add_scheme_to_urls(most_visited_urls, add_scheme_file)
-
-url = "www.archve.org"
-status_code = check_website_status(add_scheme_to_url(url))
-print(f"Status Code: {status_code}")
-
-
-url = "https://www.circuitlab.com/"
-sector = categorize_website(url)
-print(f"Identified Sector: {sector}")
-
-
-is_dummy = is_dummy_page(add_scheme_to_url(url))
-print(f"Is dummy page: {is_dummy}")
-
-check_redirect("http://www.twitter.com/")
-
-check_url("http://www.google.com")
-
-
 
 # Data to be used in examples
 # most used URLs
@@ -228,3 +197,32 @@ most_visited_urls = [ "https://www.google.com", "https://www.youtube.com", "http
 
 most_ten_visited_urls = [ "https://www.google.com", "https://www.youtube.com", "https://www.facebook.com", "https://www.wikipedia.org", "https://www.instagram.com",
                       "https://www.reddit.com", "https://www.bing.com", "https://www.x.com", "https://www.whatsapp.com", "https://www.taboola.com"]
+
+
+redirect_output_file = 'redirect_results.csv' 
+add_scheme_file = 'add_scheme_results.csv' 
+return_status_file = 'return_status_results.csv' 
+
+batch_process(most_visited_urls, redirect_output_file)
+add_scheme_to_urls(most_visited_urls, add_scheme_file)
+process_urls_concurrently(return_status_file, most_visited_urls, max_workers=5)
+
+
+url = "www.archve.org"
+status_code = check_website_status(add_scheme_to_url(url))
+print(f"Status Code: {status_code}")
+
+
+url = "https://www.circuitlab.com/"
+sector = categorize_website(url)
+print(f"Identified Sector: {sector}")
+
+
+is_dummy = is_dummy_page(add_scheme_to_url(url))
+print(f"Is dummy page: {is_dummy}")
+
+check_redirect("http://www.twitter.com/")
+
+check_url("http://www.google.com")
+
+
